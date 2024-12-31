@@ -1,0 +1,9 @@
+FROM 'nginx:latest'
+
+# Nginxのデフォルトの設定に従って起動
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+
+#RUN service nginx start
+

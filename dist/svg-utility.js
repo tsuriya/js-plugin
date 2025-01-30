@@ -68,6 +68,7 @@
         },
         /** 文字パース */
         parseString :  function (strPath) {
+            // SVGパスコマンドの定義
             const C_COMMOND = {
                 "MOVE"                   : "M",
                 "CLOSE"                  : "Z",
@@ -80,26 +81,28 @@
                 "SMOOTH_QUADRATIC_CURVE" : "T",
                 "ARC"                    : "A",
             };
-
+        
+            // コマンドリストを取得し、正規表現を作成
             const lstCommand   = Object.keys(C_COMMOND).map((v)=>C_COMMOND[v]).join("");
             const lowerCommand = lstCommand.toLowerCase();
             const regCommand   = new RegExp(`[${lstCommand}]`, "ig");
-            const dimension    = 2;
-
+            const dimension    = 2; // 2D座標空間
+        
+            // 入力文字列をコマンドと数値に分割
             let arrCommands  = strPath.match(regCommand);
             let arrPath      = strPath.split(regCommand);
-
+        
             if (!arrPath[0]) {
-                arrPath.shift();
+                arrPath.shift(); // 空の要素があれば削除
             }
             let buf        = [];
             let currentPos = [];
             let beforePath = [];
             let beginPos   = [];
-
+        
             let result = [];
             arrPath.forEach((v, ii)=>{
-                const blnRelative = lowerCommand.indexOf(arrCommands[ii]) > -1;
+                const blnRelative = lowerCommand.indexOf(arrCommands[ii]) > -1; // 相対座標判定
                 const command = arrCommands[ii].toUpperCase();
                 let r = {
                     "command" : command,
@@ -107,6 +110,7 @@
                                 .map((w, jj)=>{
                                     let s = parseFloat(w);
                                     if (blnRelative && buf.length === dimension) {
+                                        // 相対座標を絶対座標に変換
                                         switch (command) {
                                             case C_COMMOND.HORIZON:
                                                 s+=currentPos[0];
@@ -115,8 +119,6 @@
                                                 s+=currentPos[1];
                                             break;
                                             case C_COMMOND.ARC:
-                                                // (rx ry x-axis-rotation large-arc-flag sweep-flag x y)+
-                                                //if (jj % dimension * 2 >= dimension) {
                                                 if (jj >= dimension + 3) {
                                                     s+=currentPos[(jj-dimension+3) % dimension];
                                                 }
@@ -126,6 +128,7 @@
                                             break;
                                         }
                                     }
+                                    // 座標バッファに格納
                                     switch (command) {
                                         case C_COMMOND.HORIZON:
                                             buf[0] = s;
@@ -134,7 +137,6 @@
                                             buf[1] = s;
                                         break;
                                         case C_COMMOND.ARC:
-                                            // (rx ry x-axis-rotation large-arc-flag sweep-flag x y)+
                                             if (jj >= dimension + 3) {
                                                 buf[(jj-dimension+3) % dimension] = s;
                                             }
@@ -143,90 +145,27 @@
                                             buf[jj % dimension] = s;
                                         break;
                                     }
-
+        
                                     if (command === C_COMMOND.MOVE) {
-                                        beginPos = buf.map((v)=>v);
+                                        beginPos = buf.map((v)=>v); // 移動開始位置を記録
                                     }
-
+        
                                     return parseFloat(s.toFixed(3));
                                 })
                 };
-
+        
                 let p = [];
-                let before = [];
                 switch (command) {
                     case C_COMMOND.HORIZON:
-                        r.path.forEach((v)=>{
-                            let b = [];
-                            for (let ii = 0; ii < dimension; ii++) {
-                                if (ii === 0) {
-                                    b[ii] = v;
-                                } else {
-                                    b[ii] = currentPos[ii];
-                                }
-                            }
-                            Array.prototype.push
-                            .apply(p, b);
-                        })
-                        r.command = C_COMMOND.LINE;
-                        r.path = p;
-                    break;
                     case C_COMMOND.VERTICAL:
                         r.path.forEach((v)=>{
                             let b = [];
                             for (let ii = 0; ii < dimension; ii++) {
-                                if (ii === 1) {
-                                    b[ii] = v;
-                                } else {
-                                    b[ii] = currentPos[ii];
-                                }
+                                b[ii] = (command === C_COMMOND.HORIZON) ? [v, currentPos[1]] : [currentPos[0], v];
                             }
-                            Array.prototype.push
-                            .apply(p, b);
-                        })
+                            p.push(...b);
+                        });
                         r.command = C_COMMOND.LINE;
-                        r.path = p;
-                    break;
-                    case C_COMMOND.SMOOTH_CURVE:
-                        before = beforePath.slice(-2 * dimension);
-                        for (let ii = 0; ii < r.path.length; ii+=(2 * dimension)) {
-                            let b = [];
-
-                            for (let ii = 0; ii < dimension; ii++) {
-                                // -x0 + 2 * x1
-                                b[ii] = parseFloat((-before[ii] + 2 * before[ii + dimension]).toFixed(3));
-                            }
-                            Array.prototype.push
-                            .apply(b, r.path.slice(ii, ii+2*dimension));
-
-                            Array.prototype.push
-                            .apply(p, b);
-
-                            before = r.path.slice(ii, ii+2*dimension);
-                        }
-
-                        r.command = C_COMMOND.CURVE;
-                        r.path = p;
-                    break;
-                    case C_COMMOND.SMOOTH_QUADRATIC_CURVE:
-                        before = beforePath.slice(-2 * dimension);
-                        for (let ii = 0; ii < r.path.length; ii+=dimension) {
-                            let b = [];
-
-                            for (let ii = 0; ii < dimension; ii++) {
-                                // -(x0-x1) + x1 = -x0 + 2 * x1
-                                b[ii] = parseFloat((-before[ii] + 2 * before[ii + dimension]).toFixed(3));
-                            }
-                            Array.prototype.push
-                            .apply(b, r.path.slice(ii, ii+dimension));
-
-                            Array.prototype.push
-                            .apply(p, b);
-
-                            before = b;
-                        }
-
-                        r.command = C_COMMOND.QUADRATIC_CURVE;
                         r.path = p;
                     break;
                     case C_COMMOND.CLOSE:
@@ -234,19 +173,18 @@
                         r.path = beginPos;
                     break;
                 }
-
+        
                 currentPos = buf.map((v)=>v);
                 beforePath = r.path;
-
-
-                // 結果セットに取得した内容をセットする(前コマンドと同条件の場合は、同一コマンドとする)
+        
+                // 連続する同じコマンドを統合
                 if (!result[result.length-1] || result[result.length-1].command !== r.command) {
                     result.push(r);
                 } else {
                     result[result.length-1].path = result[result.length-1].path.concat(r.path);
                 }
             });
-
+        
             return result;
         },
         toPathString : function (parse) {

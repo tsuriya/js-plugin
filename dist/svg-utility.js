@@ -128,9 +128,25 @@
                                             break;
                                         }
                                     }
-                                    buf[jj % dimension] = s;
+                                    // 座標バッファに格納
+                                    switch (command) {
+                                        case C_COMMOND.HORIZON:
+                                            buf[0] = s;
+                                        break;
+                                        case C_COMMOND.VERTICAL:
+                                            buf[1] = s;
+                                        break;
+                                        case C_COMMOND.ARC:
+                                            if (jj >= dimension + 3) {
+                                                buf[(jj-dimension+3) % dimension] = s;
+                                            }
+                                        break;
+                                        default:
+                                            buf[jj % dimension] = s;
+                                        break;
+                                    }
                                     if (command === C_COMMOND.MOVE) {
-                                        beginPos = buf.map((v)=>v);
+                                        beginPos = buf.map((v)=>v); // 移動開始位置を記録
                                     }
                                     return parseFloat(s.toFixed(3));
                                 })

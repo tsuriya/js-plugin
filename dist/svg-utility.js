@@ -67,7 +67,7 @@
             });
         },
         /** 文字パース */
-        parseString :  function (strPath) {
+        parseString : function (strPath) {
             // SVGパスコマンドの定義
             const C_COMMOND = {
                 "MOVE"                   : "M",
@@ -128,44 +128,57 @@
                                             break;
                                         }
                                     }
-                                    // 座標バッファに格納
-                                    switch (command) {
-                                        case C_COMMOND.HORIZON:
-                                            buf[0] = s;
-                                        break;
-                                        case C_COMMOND.VERTICAL:
-                                            buf[1] = s;
-                                        break;
-                                        case C_COMMOND.ARC:
-                                            if (jj >= dimension + 3) {
-                                                buf[(jj-dimension+3) % dimension] = s;
-                                            }
-                                        break;
-                                        default:
-                                            buf[jj % dimension] = s;
-                                        break;
-                                    }
-        
+                                    buf[jj % dimension] = s;
                                     if (command === C_COMMOND.MOVE) {
-                                        beginPos = buf.map((v)=>v); // 移動開始位置を記録
+                                        beginPos = buf.map((v)=>v);
                                     }
-        
                                     return parseFloat(s.toFixed(3));
                                 })
                 };
         
                 let p = [];
+                let before = [];
                 switch (command) {
                     case C_COMMOND.HORIZON:
-                    case C_COMMOND.VERTICAL:
-                        r.path.forEach((v)=>{
-                            let b = [];
-                            for (let ii = 0; ii < dimension; ii++) {
-                                b[ii] = (command === C_COMMOND.HORIZON) ? [v, currentPos[1]] : [currentPos[0], v];
-                            }
-                            p.push(...b);
+                        r.path.forEach((v) => {
+                            p.push(v, currentPos[1]);
                         });
                         r.command = C_COMMOND.LINE;
+                        r.path = p;
+                    break;
+                    case C_COMMOND.VERTICAL:
+                        r.path.forEach((v) => {
+                            p.push(currentPos[0], v);
+                        });
+                        r.command = C_COMMOND.LINE;
+                        r.path = p;
+                    break;
+                    case C_COMMOND.SMOOTH_CURVE:
+                        before = beforePath.slice(-2 * dimension);
+                        for (let i = 0; i < r.path.length; i += (2 * dimension)) {
+                            let b = [];
+                            for (let j = 0; j < dimension; j++) {
+                                b[j] = parseFloat((-before[j] + 2 * before[j + dimension]).toFixed(3));
+                            }
+                            b.push(...r.path.slice(i, i + 2 * dimension));
+                            p.push(...b);
+                            before = r.path.slice(i, i + 2 * dimension);
+                        }
+                        r.command = C_COMMOND.CURVE;
+                        r.path = p;
+                    break;
+                    case C_COMMOND.SMOOTH_QUADRATIC_CURVE:
+                        before = beforePath.slice(-2 * dimension);
+                        for (let i = 0; i < r.path.length; i += dimension) {
+                            let b = [];
+                            for (let j = 0; j < dimension; j++) {
+                                b[j] = parseFloat((-before[j] + 2 * before[j + dimension]).toFixed(3));
+                            }
+                            b.push(...r.path.slice(i, i + dimension));
+                            p.push(...b);
+                            before = b;
+                        }
+                        r.command = C_COMMOND.QUADRATIC_CURVE;
                         r.path = p;
                     break;
                     case C_COMMOND.CLOSE:

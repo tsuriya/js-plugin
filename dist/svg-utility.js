@@ -155,6 +155,50 @@
                 let p = [];
                 let before = [];
                 switch (command) {
+                    case C_COMMOND.ARC:
+                        // 楕円弧をより正確なベジェ曲線に変換
+                        for (let i = 0; i < r.path.length; i += 7) {
+                            let rx = r.path[i];
+                            let ry = r.path[i + 1];
+                            let xAxisRotation = r.path[i + 2] * (Math.PI / 180); // 角度をラジアンに変換
+                            let largeArcFlag = r.path[i + 3];
+                            let sweepFlag = r.path[i + 4];
+                            let x = r.path[i + 5];
+                            let y = r.path[i + 6];
+                            
+                            // 楕円弧の制御点計算（近似）
+                            let dx = (currentPos[0] - x) / 2.0;
+                            let dy = (currentPos[1] - y) / 2.0;
+                            let cosAngle = Math.cos(xAxisRotation);
+                            let sinAngle = Math.sin(xAxisRotation);
+                            let x1 = cosAngle * dx + sinAngle * dy;
+                            let y1 = -sinAngle * dx + cosAngle * dy;
+                            
+                            let radiiCheck = (x1 * x1) / (rx * rx) + (y1 * y1) / (ry * ry);
+                            if (radiiCheck > 1) {
+                                let scale = Math.sqrt(radiiCheck);
+                                rx *= scale;
+                                ry *= scale;
+                            }
+                            
+                            let cx = (currentPos[0] + x) / 2;
+                            let cy = (currentPos[1] + y) / 2;
+                            
+                            if (largeArcFlag !== sweepFlag) {
+                                cx += rx * Math.cos(xAxisRotation);
+                                cy += ry * Math.sin(xAxisRotation);
+                            }
+                            
+                            let controlX1 = cx + (rx * Math.cos(xAxisRotation));
+                            let controlY1 = cy + (ry * Math.sin(xAxisRotation));
+                            let controlX2 = x - (rx * Math.cos(xAxisRotation));
+                            let controlY2 = y - (ry * Math.sin(xAxisRotation));
+                            
+                            p.push(controlX1, controlY1, controlX2, controlY2, x, y);
+                        }
+                        r.command = C_COMMOND.CURVE;
+                        r.path = p;
+                    break;
                     case C_COMMOND.HORIZON:
                         r.path.forEach((v) => {
                             p.push(v, currentPos[1]);

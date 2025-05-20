@@ -289,9 +289,8 @@
         return [cx, cy, rx, ry, phi, startAngle, startAngle + deltaAngle, !sweepFlag];
     };
 
-
     /** Canvasの楕円弧をベジェ曲線に変換する */
-    function convertEllipseArcToBezier(cx, cy, rx, ry, rotation, startAngle, endAngle, counterclockwise = false) {
+    const convertEllipseArcToBezier = (cx, cy, rx, ry, rotation, startAngle, endAngle, counterclockwise = false) => {
         const K = 0.5522847498; // 楕円近似の制御点係数
         const cosRot = Math.cos(rotation);
         const sinRot = Math.sin(rotation);
@@ -309,14 +308,11 @@
         const startX = cx + rx * Math.cos(startAngle) * cosRot - ry * Math.sin(startAngle) * sinRot;
         const startY = cy + rx * Math.cos(startAngle) * sinRot + ry * Math.sin(startAngle) * cosRot;
     
-        const result = {
-            "M": [startX, startY],
-            "C" : []
-        };
+        const result = [startX, startY];
     
-        for (let i = 0; i < segments; i++) {
-            const angle1 = startAngle + i * deltaTheta;
-            const angle2 = startAngle + (i + 1) * deltaTheta;
+        for (let ii = 0; ii < segments; ii++) {
+            const angle1 = startAngle + ii * deltaTheta;
+            const angle2 = startAngle + (ii + 1) * deltaTheta;
             const alpha = Math.tan((angle2 - angle1) / 2) * 4 / 3;
     
             const x1 = cx + rx * (Math.cos(angle1) - alpha * Math.sin(angle1)) * cosRot
@@ -332,21 +328,23 @@
             const endX = cx + rx * Math.cos(angle2) * cosRot - ry * Math.sin(angle2) * sinRot;
             const endY = cy + rx * Math.cos(angle2) * sinRot + ry * Math.sin(angle2) * cosRot;
     
-            result.C.push(x1, y1, x2, y2, endX, endY);
+            result.push(x1, y1, x2, y2, endX, endY);
         }
     
         return result;
-    }
+    };
+    /** SVGの円弧をベジェ曲線に変換する */
+    const convertArcSvgToBezier = (x1, y1, x2, y2, rx, ry, xAxisRotation, largeArcFlag, sweepFlag) => {
+        return convertEllipseArcToBezier(...convertArcSvgToCanvas(x1, y1, x2, y2, rx, ry, xAxisRotation, largeArcFlag, sweepFlag));
+    };
 
 
-
-
-
-    
     /** パスをパースしたオブジェクトを格納するClass */
     class SVGPath {
         constructor () {
             this.paths = [];
+            this.lengths = [];
+            this.sumLength = 0;
         }
         /** コマンド取得 */
         get (index) {
@@ -364,6 +362,12 @@
             this.paths[index].command = command;
             this.paths[index].path = path;
         }
+        /** 長さなどをリセットする */
+        refresh () {
+
+        }
+
+
         /** パースした文字をCanvas上に描画する */
         draw (ctx, oX, oY, sX, sY) {
             oX = oX||0;
@@ -416,6 +420,10 @@
         /** コマンドの数を返す */
         get count () {
             return this.paths.length;
+        }
+        /** パスの長さを返す */
+        get length () {
+            return this.sumLength;
         }
     }
     /** SVGパスコマンドの定義 */
@@ -510,16 +518,24 @@
             let before = [];
             switch (command) {
                 case C_COMMOND.ARC:
+                    const begin = currentPos;
+                    console.log(currentPos, buf);
                     // 楕円弧をより正確なベジェ曲線に変換
-                    for (let ii = 0; ii < r.path.length; ii += 7) {
+                    for (let ii = 0; ii < r.path.length; ii += dimension * 2 + 3) {
+                        const x1 = ii === 0 ? begin[0] : r.path[ii - dimension];
+                        const y1 = ii === 0 ? begin[0] : r.path[ii - dimension + 1];
+
                         const rx = r.path[ii];
                         const ry = r.path[ii + 1];
                         const xAxisRotation = r.path[ii + 2] * (Math.PI / 180); // 角度をラジアンに変換
                         const largeArcFlag = r.path[ii + 3];
                         const sweepFlag = r.path[ii + 4];
-                        const x = r.path[ii + 5];
-                        const y = r.path[ii + 6];
-                        
+                        const x2 = r.path[ii + 5];
+                        const y2 = r.path[ii + 6];
+
+                        // 楕円弧をベジェ曲線に変換
+                        console.log(convertArcSvgToBezier(x1, y1, x2, y2, rx, ry, xAxisRotation, largeArcFlag, sweepFlag));
+                        p.push(...convertArcSvgToBezier(x1, y1, x2, y2, rx, ry, xAxisRotation, largeArcFlag, sweepFlag).slice(dimension));
                     }
                     r.command = C_COMMOND.CURVE;
                     r.path = p;
